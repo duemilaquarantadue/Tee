@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- A-Frame + extras + MindAR -->
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
+    <style>
+      /* --- Pulsante azione (foto / video) --- */
+      #action-button {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 76px;
+        height: 76px;
+        border-radius: 50%;
+        background: rgba(0,0,0,0.55);
+        border: 3px solid white;
+        box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+        display: grid;
+        place-items: center;
+        z-index: 9999;
+        transition: opacity 160ms ease, transform 160ms ease, background 120ms ease;
+      }
+
+      /* Previene lente d’ingrandimento / selezione testo / tap highlight su iOS */
+      #action-button,
+      #action-button * {
+        -webkit-touch-callout: none !important;
+        -webkit-user-select: none !important;
+        user-select: none !important;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: none;
+      }
+
+      #action-button.hidden {
+        opacity: 0;
+        transform: translateX(-50%) translateY(10px) scale(0.9);
+        pointer-events: none;
+      }
+
+      #action-button.pressed #action-button-inner {
+        transform: scale(0.94);
+      }
+
+      /* Stato registrazione (classe gestita da screenshot.js) */
+      #action-button.recording {
+        border-color: #ff4444;
+      }
+      #action-button.recording #action-button-inner {
+        background: #ff4444;
+        border-radius: 18px;
+        transform: scale(0.9);
+      }
+      #action-button.recording::after {
+        content: "";
+        position: absolute;
+        width: 96px;
+        height: 96px;
+        border-radius: 50%;
+        border: 3px solid rgba(255,68,68,0.6);
+        animation: pulse 1.2s ease-out infinite;
+      }
+
+      @keyframes pulse {
+        0% { transform: scale(0.9); opacity: 1; }
+        100% { transform: scale(1.2); opacity: 0; }
+      }
+
+      #action-button-inner {
+        width: 54px;
+        height: 54px;
+        border-radius: 50%;
+        background: white;
+        transition: transform 120ms, background 120ms, border-radius 120ms;
+      }
+
+      /* Notifica errori/info usata da screenshot.js */
+      #notification {
+        position: fixed;
+        bottom: 110px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 6px 10px;
+        background: rgba(0,0,0,0.75);
+        color: #fff;
+        border-radius: 10px;
+        font: 600 12px/1.3 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        letter-spacing: 0.4px;
+        display: none;
+        z-index: 9999;
+      }
+    </style>
+
+    <script>
+      /* ---------- Componenti di smoothing ---------- */
+      AFRAME.registerComponent('smooth-position', {
+        schema: { factor: { type: 'number', default: 0.15 } },
+        init() {
+          this.targetPosition = new THREE.Vector3();
+          this.currentPosition = new THREE.Vector3();
+        },
+        tick() {
+          const parent = this.el.parentElement;
+          if (!parent) return;
+          this.targetPosition.copy(parent.object3D.position).add(new THREE.Vector3(0, -0.25, 0));
+          this.currentPosition.lerp(this.targetPosition, this.data.factor);
+          this.el.object3D.position.copy(this.currentPosition);
+        }
+      });
+
+      AFRAME.registerComponent('smooth-rotation', {
+        schema: { factor: { type: 'number', default: 0.15 } },
+        init() {
+          this.targetQuaternion = new THREE.Quaternion();
+          this.currentQuaternion = new THREE.Quaternion();
+        },
+        tick() {
+          const parent = this.el.parentElement;
+          if (!parent) return;
+          this.targetQuaternion.copy(parent.object3D.quaternion);
+          this.currentQuaternion.slerp(this.targetQuaternion, this.data.factor);
+          this.el.object3D.quaternion.copy(this.currentQuaternion);
+        }
+      });
+
+      /* ---------- Mostra/nasconde bottone quando il marker è trovato ---------- */
+      document.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('action-button');
+        const target = document.querySelector('[mindar-image-target]');
+
+        if (!btn || !target) return;
+
+        const showBtn = () => btn.classList.remove('hidden');
+        const hideBtn = () => btn.classList.add('hidden');
+
+        target.addEventListener('targetFound', showBtn);
+        target.addEventListener('targetLost', hideBtn);
+
+        hideBtn(); // inizialmente nascosto
+
+        // Effetto "pressed" estetico
+        btn.addEventListener('pointerdown', () => btn.classList.add('pressed'));
+        const clearPressed = () => btn.classList.remove('pressed');
+        btn.addEventListener('pointerup', clearPressed);
+        btn.addEventListener('pointercancel', clearPressed);
+        btn.addEventListener('contextmenu', e => e.preventDefault());
+      });
+    </script>
+
+    <!-- Collegamento allo script esterno che gestisce foto/video -->
+    <script src="screenshot.js" defer></script>
+  </head>
+
+  <body>
+    <!-- UI -->
+    <div id="action-button" aria-label="Capture">
+      <div id="action-button-inner"></div>
+    </div>
+
+    <div id="notification"></div>
+
+    <!-- Scena AR -->
+    <a-scene
+      mindar-image="imageTargetSrc: targets.mind; maxTrack: 2; filterMinCF: 0.0001; filterBeta: 0.001"
+      color-space="sRGB"
+      renderer="colorManagement: true; physicallyCorrectLights: true; antialias: true; precision: high"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: false"
+    >
+      <a-assets>
+        <a-asset-item id="raccoonModel" src="model.glb"></a-asset-item>
+      </a-assets>
+
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+      <a-entity id="arAnchor" mindar-image-target="targetIndex: 0">
+        <a-entity position="0 0.25 0">
+          <a-gltf-model
+            rotation="0 0 0"
+            position="0 0 0"
+            scale="0.007 0.007 0.007"
+            src="#raccoonModel"
+            animation-mixer
+            smooth-position="factor: 0.2"
+            smooth-rotation="factor: 0.2"
+          ></a-gltf-model>
+        </a-entity>
+      </a-entity>
+    </a-scene>
+  </body>
+</html>
