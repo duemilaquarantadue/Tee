@@ -1,11 +1,7 @@
 <!DOCTYPE html>
-<html lang="it">
+<html>
   <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <!-- A-Frame + extras + MindAR -->
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
@@ -13,16 +9,6 @@
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
     <style>
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-        width: 100%;
-        height: 100%;
-        background: #000;
-      }
-
       /* --- Pulsante azione (foto / video) --- */
       #action-button {
         position: fixed;
@@ -32,9 +18,9 @@
         width: 76px;
         height: 76px;
         border-radius: 50%;
-        background: rgba(0, 0, 0, 0.55);
+        background: rgba(0,0,0,0.55);
         border: 3px solid white;
-        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+        box-shadow: 0 6px 24px rgba(0,0,0,0.35);
         display: grid;
         place-items: center;
         z-index: 9999;
@@ -61,36 +47,28 @@
         transform: scale(0.94);
       }
 
-      /* Stato registrazione */
+      /* Stato registrazione (classe gestita da screenshot.js) */
       #action-button.recording {
         border-color: #ff4444;
       }
-
       #action-button.recording #action-button-inner {
         background: #ff4444;
         border-radius: 18px;
         transform: scale(0.9);
       }
-
       #action-button.recording::after {
         content: "";
         position: absolute;
         width: 96px;
         height: 96px;
         border-radius: 50%;
-        border: 3px solid rgba(255, 68, 68, 0.6);
+        border: 3px solid rgba(255,68,68,0.6);
         animation: pulse 1.2s ease-out infinite;
       }
 
       @keyframes pulse {
-        0% {
-          transform: scale(0.9);
-          opacity: 1;
-        }
-        100% {
-          transform: scale(1.2);
-          opacity: 0;
-        }
+        0% { transform: scale(0.9); opacity: 1; }
+        100% { transform: scale(1.2); opacity: 0; }
       }
 
       #action-button-inner {
@@ -101,29 +79,27 @@
         transition: transform 120ms, background 120ms, border-radius 120ms;
       }
 
-      /* Notifica */
+      /* Notifica errori/info usata da screenshot.js */
       #notification {
         position: fixed;
         bottom: 110px;
         left: 50%;
         transform: translateX(-50%);
-        padding: 8px 12px;
-        background: rgba(0, 0, 0, 0.78);
+        padding: 6px 10px;
+        background: rgba(0,0,0,0.75);
         color: #fff;
         border-radius: 10px;
-        font: 600 12px/1.35 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-        letter-spacing: 0.2px;
+        font: 600 12px/1.3 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        letter-spacing: 0.4px;
         display: none;
         z-index: 9999;
-        max-width: 80vw;
-        text-align: center;
       }
     </style>
 
     <script>
-      /* ---------- Smoothing ---------- */
-      AFRAME.registerComponent("smooth-position", {
-        schema: { factor: { type: "number", default: 0.15 } },
+      /* ---------- Componenti di smoothing ---------- */
+      AFRAME.registerComponent('smooth-position', {
+        schema: { factor: { type: 'number', default: 0.15 } },
         init() {
           this.targetPosition = new THREE.Vector3();
           this.currentPosition = new THREE.Vector3();
@@ -131,16 +107,14 @@
         tick() {
           const parent = this.el.parentElement;
           if (!parent) return;
-          this.targetPosition
-            .copy(parent.object3D.position)
-            .add(new THREE.Vector3(0, -0.25, 0));
+          this.targetPosition.copy(parent.object3D.position).add(new THREE.Vector3(0, -0.25, 0));
           this.currentPosition.lerp(this.targetPosition, this.data.factor);
           this.el.object3D.position.copy(this.currentPosition);
-        },
+        }
       });
 
-      AFRAME.registerComponent("smooth-rotation", {
-        schema: { factor: { type: "number", default: 0.15 } },
+      AFRAME.registerComponent('smooth-rotation', {
+        schema: { factor: { type: 'number', default: 0.15 } },
         init() {
           this.targetQuaternion = new THREE.Quaternion();
           this.currentQuaternion = new THREE.Quaternion();
@@ -151,99 +125,40 @@
           this.targetQuaternion.copy(parent.object3D.quaternion);
           this.currentQuaternion.slerp(this.targetQuaternion, this.data.factor);
           this.el.object3D.quaternion.copy(this.currentQuaternion);
-        },
+        }
       });
 
-      /* ---------- Forza materiale bianco puro ---------- */
-      AFRAME.registerComponent("force-white-material", {
-        init() {
-          this.el.addEventListener("model-loaded", (e) => {
-            const model = e.detail.model;
-            if (!model) return;
-
-            model.traverse((node) => {
-              if (!node.isMesh) return;
-
-              const newMaterial = new THREE.MeshBasicMaterial({
-                color: 0xffffff,
-                side: THREE.DoubleSide,
-                transparent: false,
-                fog: false
-              });
-
-              node.material = newMaterial;
-              node.material.map = null;
-              node.material.lightMap = null;
-              node.material.aoMap = null;
-              node.material.emissiveMap = null;
-              node.material.bumpMap = null;
-              node.material.normalMap = null;
-              node.material.roughnessMap = null;
-              node.material.metalnessMap = null;
-              node.material.alphaMap = null;
-              node.material.envMap = null;
-              node.material.needsUpdate = true;
-            });
-          });
-        },
-      });
-
-      /* ---------- UI bottone targetFound/targetLost ---------- */
-      document.addEventListener("DOMContentLoaded", () => {
-        const btn = document.getElementById("action-button");
-        const target = document.getElementById("arAnchor");
-        const notification = document.getElementById("notification");
+      /* ---------- Mostra/nasconde bottone quando il marker è trovato ---------- */
+      document.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('action-button');
+        const target = document.querySelector('[mindar-image-target]');
 
         if (!btn || !target) return;
 
-        const showBtn = () => btn.classList.remove("hidden");
-        const hideBtn = () => btn.classList.add("hidden");
+        const showBtn = () => btn.classList.remove('hidden');
+        const hideBtn = () => btn.classList.add('hidden');
 
-        target.addEventListener("targetFound", showBtn);
-        target.addEventListener("targetLost", hideBtn);
+        target.addEventListener('targetFound', showBtn);
+        target.addEventListener('targetLost', hideBtn);
 
-        hideBtn();
+        hideBtn(); // inizialmente nascosto
 
-        btn.addEventListener("pointerdown", () => btn.classList.add("pressed"));
-        const clearPressed = () => btn.classList.remove("pressed");
-        btn.addEventListener("pointerup", clearPressed);
-        btn.addEventListener("pointercancel", clearPressed);
-        btn.addEventListener("contextmenu", (e) => e.preventDefault());
-
-        /* Errori leggibili */
-        window.addEventListener("error", (event) => {
-          if (!notification) return;
-          const message =
-            event?.message || "Errore sconosciuto nello script.";
-          notification.textContent = "Error: " + message;
-          notification.style.display = "block";
-          setTimeout(() => {
-            notification.style.display = "none";
-          }, 4000);
-        });
-
-        window.addEventListener("unhandledrejection", (event) => {
-          if (!notification) return;
-          const reason =
-            event?.reason?.message ||
-            event?.reason ||
-            "Promise rejection sconosciuta.";
-          notification.textContent = "Error: " + reason;
-          notification.style.display = "block";
-          setTimeout(() => {
-            notification.style.display = "none";
-          }, 4000);
-        });
+        // Effetto "pressed" estetico
+        btn.addEventListener('pointerdown', () => btn.classList.add('pressed'));
+        const clearPressed = () => btn.classList.remove('pressed');
+        btn.addEventListener('pointerup', clearPressed);
+        btn.addEventListener('pointercancel', clearPressed);
+        btn.addEventListener('contextmenu', e => e.preventDefault());
       });
     </script>
 
-    <!-- Script esterno per foto/video -->
-    <script src="./screenshot.js" defer></script>
+    <!-- Collegamento allo script esterno che gestisce foto/video -->
+    <script src="screenshot.js" defer></script>
   </head>
 
   <body>
     <!-- UI -->
-    <div id="action-button" class="hidden" aria-label="Capture">
+    <div id="action-button" aria-label="Capture">
       <div id="action-button-inner"></div>
     </div>
 
@@ -251,51 +166,28 @@
 
     <!-- Scena AR -->
     <a-scene
-      mindar-image="imageTargetSrc: ./targets.mind; maxTrack: 2; filterMinCF: 0.0001; filterBeta: 0.001"
+      mindar-image="imageTargetSrc: targets.mind; maxTrack: 2; filterMinCF: 0.0001; filterBeta: 0.001"
       color-space="sRGB"
       renderer="colorManagement: true; physicallyCorrectLights: true; antialias: true; precision: high"
       vr-mode-ui="enabled: false"
       device-orientation-permission-ui="enabled: false"
-      embedded
     >
       <a-assets>
-        <a-asset-item id="wingsModel" src="./model.glb"></a-asset-item>
+        <a-asset-item id="raccoonModel" src="model.glb"></a-asset-item>
       </a-assets>
 
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-      <!-- Luci -->
-      <a-light type="ambient" color="#ffffff" intensity="1.6"></a-light>
-      <a-light
-        type="directional"
-        color="#ffffff"
-        intensity="1.3"
-        position="1 2 1"
-      ></a-light>
-      <a-light
-        type="directional"
-        color="#ffffff"
-        intensity="0.9"
-        position="-1 1 0.5"
-      ></a-light>
-      <a-light
-        type="hemisphere"
-        color="#ffffff"
-        groundColor="#bbbbbb"
-        intensity="0.9"
-      ></a-light>
-
-      <!-- Anchor AR -->
       <a-entity id="arAnchor" mindar-image-target="targetIndex: 0">
         <a-entity position="0 0.25 0">
           <a-gltf-model
-            src="#wingsModel"
-            position="0 0 0"
             rotation="0 0 0"
+            position="0 0 0"
             scale="0.007 0.007 0.007"
+            src="#raccoonModel"
+            animation-mixer
             smooth-position="factor: 0.2"
             smooth-rotation="factor: 0.2"
-            force-white-material
           ></a-gltf-model>
         </a-entity>
       </a-entity>
